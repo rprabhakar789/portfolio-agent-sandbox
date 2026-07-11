@@ -1,0 +1,175 @@
+name: Portfolio Update (repository_dispatch)
+
+# Triggered by an external repository_dispatch event with event_type: "portfolio-update"
+# Payload format:
+#   {
+#     "event_type": "portfolio-update",
+#     "client_payload": {
+#       "instruction": "Update bio to: I love building tools.",
+#       "operations": []   // optional: skip AI and pass edit ops directly
+#     }
+#   }
+
+on:
+  repository_dispatch:
+    types: [portfolio-update]
+
+  # Allow manual trigger from Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      instruction:
+        description: "Free-text instruction for the agent"
+        required: true
+        default: "Update bio to: Available for new opportunities."
+      operations:
+        description: "Optional JSON array of edit operations (overrides AI parsing)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Run Update Pipeline
+    runs-on: ubuntu-latest
+
+    outputs:
+      auto_merge: ${{ steps.agent.outputs.auto_merge }}
+      pr_number: ${{ steps.create-pr.outputs.pr_number }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Use a PAT (or GITHUB_TOKEN) so that push triggers CI on the new branch
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build agent payload
+        id: payload
+        env:
+          # repository_dispatch payload
+          DISPATCH_INSTRUCTION: ${{ github.event.client_payload.instruction }}
+          DISPATCH_OPERATIONS: ${{ toJSON(github.event.client_payload.operations) }}
+          # workflow_dispatch inputs
+          WD_INSTRUCTION: ${{ inputs.instruction }}
+          WD_OPERATIONS: ${{ inputs.operations }}
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "INSTRUCTION=${DISPATCH_INSTRUCTION}" >> "$GITHUB_ENV"
+            # Write operations to a temp file if provided
+            if [ "${DISPATCH_OPERATIONS}" != "null" ] && [ -n "${DISPATCH_OPERATIONS}" ]; then
+              echo "${DISPATCH_OPERATIONS}" > /tmp/operations.json
+              echo "OPS_FILE=/tmp/operations.json" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "INSTRUCTION=${WD_INSTRUCTION}" >> "$GITHUB_ENV"
+            if [ -n "${WD_OPERATIONS}" ]; then
+              echo "${WD_OPERATIONS}" > /tmp/operations.json
+              echo "OPS_FILE=/tmp/operations.json" >> "$GITHUB_ENV"
+            fi
+          fi
+
+      - name: Run agent pipeline
+        id: agent
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          INSTRUCTION: ${{ env.INSTRUCTION }}
+        run: |
+          if [ -n "$OPS_FILE" ]; then
+            OPS=$(cat "$OPS_FILE")
+            PAYLOAD="{\"instruction\":\"${INSTRUCTION}\",\"operations\":${OPS}}"
+            node pipeline/agent.js --json "$PAYLOAD" || EXIT=$?
+          else
+            node pipeline/agent.js --instruction "$INSTRUCTION" || EXIT=$?
+          fi
+
+          EXIT=${EXIT:-0}
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+
+          # exit code 2 means auto-merge intent detected
+          if [ "$EXIT" -eq 2 ]; then
+            echo "auto_merge=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EXIT" -eq 0 ]; then
+            echo "auto_merge=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Pipeline failed with exit code $EXIT" >&2
+            exit $EXIT
+          fi
+
+      - name: Check for content changes
+        id: diff
+        run: |
+          git diff --quiet content/ && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit changes
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="agent/update-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          git add content/
+          git commit -m "chore(content): automated update via portfolio agent
+
+          Instruction: ${{ env.INSTRUCTION }}
+          Triggered by: ${{ github.event_name }}"
+          git push origin "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Create pull request
+        id: create-pr
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUTO_MERGE: ${{ steps.agent.outputs.auto_merge }}
+        run: |
+          TITLE="chore(content): portfolio update — $(date +%Y-%m-%d)"
+          BODY="## Portfolio Content Update
+
+          **Instruction:** \`${{ env.INSTRUCTION }}\`
+          **Auto-merge requested:** \`${AUTO_MERGE}\`
+          **Triggered by:** \`${{ github.event_name }}\`
+
+          ---
+          _This PR was created automatically by the portfolio agent pipeline._"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "$TITLE" \
+            --body "$BODY")
+
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "Created PR: $PR_URL"
+
+  auto-merge:
+    name: Auto-merge (if intent detected)
+    needs: update
+    if: needs.update.outputs.auto_merge == 'true' && needs.update.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Enable auto-merge on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ needs.update.outputs.pr_number }}"
+          echo "Auto-merge intent detected. Enabling auto-merge for PR #${PR_NUMBER}…"
+          gh pr merge "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --auto \
+            --squash \
+            --subject "chore(content): auto-merged portfolio update"

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="header">
+    <div class="container">
+      <div class="avatar-wrap">
+        <img id="avatar" src="assets/avatar.png" alt="Avatar" onerror="this.style.display='none'" />
+      </div>
+      <h1 id="profile-name">Loading…</h1>
+      <p id="profile-title" class="subtitle"></p>
+      <p id="profile-bio" class="bio"></p>
+      <nav class="links">
+        <a id="link-github" href="#" target="_blank" rel="noopener">GitHub</a>
+        <a id="link-linkedin" href="#" target="_blank" rel="noopener">LinkedIn</a>
+        <a id="link-email" href="#">Email</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="projects-section">
+      <h2>Projects</h2>
+      <div id="projects-grid" class="grid"></div>
+    </section>
+
+    <section id="skills-section">
+      <h2>Skills</h2>
+      <ul id="skills-list" class="skills-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Built with plain HTML &amp; Node.js automation · <a href="https://github.com/rprabhakar789/portfolio-agent-sandbox" target="_blank" rel="noopener">Source</a></p>
+    </div>
+  </footer>
+
+  <script>
+    async function loadJSON(path) {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
+      return res.json();
+    }
+
+    async function init() {
+      try {
+        const [profile, projects, skills] = await Promise.all([
+          loadJSON('content/profile.json'),
+          loadJSON('content/projects.json'),
+          loadJSON('content/skills.json'),
+        ]);
+
+        // Profile
+        document.title = profile.name + ' · Portfolio';
+        document.getElementById('profile-name').textContent = profile.name;
+        document.getElementById('profile-title').textContent = profile.title;
+        document.getElementById('profile-bio').textContent = profile.bio;
+        if (profile.avatar) document.getElementById('avatar').src = profile.avatar;
+        if (profile.github) {
+          const a = document.getElementById('link-github');
+          a.href = profile.github;
+          a.style.display = 'inline';
+        }
+        if (profile.linkedin) {
+          const a = document.getElementById('link-linkedin');
+          a.href = profile.linkedin;
+          a.style.display = 'inline';
+        }
+        if (profile.email) {
+          document.getElementById('link-email').href = 'mailto:' + profile.email;
+        }
+
+        // Projects
+        const grid = document.getElementById('projects-grid');
+        projects.forEach(p => {
+          const card = document.createElement('article');
+          card.className = 'card' + (p.featured ? ' featured' : '');
+          card.innerHTML = `
+            <h3><a href="${escHtml(p.url)}" target="_blank" rel="noopener">${escHtml(p.title)}</a></h3>
+            <p>${escHtml(p.description)}</p>
+            <div class="tags">${p.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
+          `;
+          grid.appendChild(card);
+        });
+
+        // Skills
+        const list = document.getElementById('skills-list');
+        skills.forEach(s => {
+          const li = document.createElement('li');
+          li.innerHTML = `<span class="skill-name">${escHtml(s.name)}</span><span class="skill-level ${s.level.toLowerCase()}">${escHtml(s.level)}</span>`;
+          list.appendChild(li);
+        });
+
+      } catch (err) {
+        console.error('Failed to load content:', err);
+        document.getElementById('profile-name').textContent = 'Portfolio';
+      }
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    init();
+  </script>
+</body>
+</html>

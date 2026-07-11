@@ -1,0 +1,17 @@
+# Build artifacts
+node_modules/
+*.log
+npm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
