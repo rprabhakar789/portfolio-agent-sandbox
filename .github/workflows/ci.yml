@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax check (lint)
+        # node --check validates syntax without running the files
+        run: |
+          node --check pipeline/agent.js
+          node --check pipeline/ai-provider.js
+          node --check pipeline/edit-engine.js
+          node --check pipeline/intent-detector.js
+          node --check pipeline/path-validator.js
+
+      - name: Run tests
+        run: node --test 'pipeline/tests/*.test.js'
+
+      - name: Validate content JSON files
+        run: |
+          for f in content/*.json; do
+            echo "Validating $f"
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "  OK"
+          done
+
+      - name: Validate index.html exists
+        run: test -f index.html && echo "index.html present"

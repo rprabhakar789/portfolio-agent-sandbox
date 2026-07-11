@@ -1,0 +1,8 @@
+[
+  { "name": "JavaScript", "level": "Expert" },
+  { "name": "Node.js", "level": "Expert" },
+  { "name": "HTML/CSS", "level": "Expert" },
+  { "name": "GitHub Actions", "level": "Advanced" },
+  { "name": "Python", "level": "Intermediate" },
+  { "name": "Docker", "level": "Intermediate" }
+]
