@@ -225,14 +225,18 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 | Secret | Required | Description |
 |--------|----------|-------------|
-| `AZURE_OPENAI_API_KEY` | Optional (Azure path) | Azure OpenAI/AI Foundry API key. Use with endpoint + deployment below. |
-| `AZURE_OPENAI_ENDPOINT` | Optional (Azure path) | Azure OpenAI endpoint, e.g. `https://<resource>.openai.azure.com`. |
-| `AZURE_OPENAI_DEPLOYMENT` | Optional (Azure path) | Azure model deployment name for chat completions. |
-| `AZURE_OPENAI_API_VERSION` | Optional (Azure path) | API version override (default: `2024-10-21`). |
-| `AZURE_OPENAI_TEMPERATURE` | Optional (Azure path) | Temperature override. Omitted by default for compatibility with models that require provider default temperature. |
+| `AZURE_OPENAI_API_KEY` | Optional (Azure path) | Azure OpenAI/AI Foundry API key. |
 | `OPENAI_API_KEY` | Optional (OpenAI path) | Enables OpenAI parsing when Azure credentials are not configured. |
 | `GITHUB_TOKEN` | Required for `copilot` in Actions | Used to create delegation issue in the target repository. |
 | `DISPATCH_TOKEN` | Recommended | A PAT with `repo` scope for triggering `repository_dispatch` from external sources (Gmail script, etc.). |
+
+Recommended Azure configuration:
+- Keep `AZURE_OPENAI_API_KEY` in **Secrets**.
+- Put these in **Variables** (with secret fallback still supported):
+  - `AZURE_OPENAI_ENDPOINT` (e.g. `https://<resource>.openai.azure.com`)
+  - `AZURE_OPENAI_DEPLOYMENT`
+  - Optional: `AZURE_OPENAI_API_VERSION` (default `2024-10-21`)
+  - Optional: `AZURE_OPENAI_TEMPERATURE`
 
 > **Note:** `GITHUB_TOKEN` is automatically available to all workflows — no setup needed for PR creation and auto-merge.
 >
