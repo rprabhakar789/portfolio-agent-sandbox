@@ -157,6 +157,8 @@ AZURE_OPENAI_API_VERSION=2024-10-21 \
 node pipeline/agent.js --instruction "Add Docker to my skills list."
 ```
 
+Azure requests omit `temperature` by default for compatibility with models that only support provider-default temperature. If your deployment supports explicit temperature, set `AZURE_OPENAI_TEMPERATURE` (for example `0.2`).
+
 ### Bypass AI — pass edit operations directly
 
 ```bash
@@ -198,6 +200,7 @@ Go to **Settings → Secrets and variables → Actions** and add:
 | `AZURE_OPENAI_ENDPOINT` | Optional (Azure path) | Azure OpenAI endpoint, e.g. `https://<resource>.openai.azure.com`. |
 | `AZURE_OPENAI_DEPLOYMENT` | Optional (Azure path) | Azure model deployment name for chat completions. |
 | `AZURE_OPENAI_API_VERSION` | Optional (Azure path) | API version override (default: `2024-10-21`). |
+| `AZURE_OPENAI_TEMPERATURE` | Optional (Azure path) | Temperature override. Omitted by default for compatibility with models that require provider default temperature. |
 | `OPENAI_API_KEY` | Optional (OpenAI path) | Enables OpenAI parsing when Azure credentials are not configured. |
 | `DISPATCH_TOKEN` | Recommended | A PAT with `repo` scope for triggering `repository_dispatch` from external sources (Gmail script, etc.). |
 
