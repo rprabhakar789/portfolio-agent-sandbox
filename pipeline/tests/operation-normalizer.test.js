@@ -21,6 +21,32 @@ test('normalizeOperations: converts skills root-array alias key and string skill
   assert.equal(result.notes.length, 2);
 });
 
+test('normalizeOperations: defaults missing level on appended skill object', () => {
+  const result = normalizeOperations([
+    { file: 'content/skills.json', op: 'append', key: '', value: { name: 'Eating' } },
+  ], { debugEnabled: true });
+
+  assert.equal(result.errors.length, 0);
+  assert.deepEqual(result.operations, [
+    {
+      file: 'content/skills.json',
+      op: 'append',
+      key: '',
+      value: { name: 'Eating', level: 'Beginner' },
+    },
+  ]);
+  assert.match(result.notes[0], /defaulted missing skill level/i);
+});
+
+test('normalizeOperations: defaults missing level on appended skill string without parentheses', () => {
+  const result = normalizeOperations([
+    { file: 'content/skills.json', op: 'append', key: '', value: 'Drinking' },
+  ], { debugEnabled: true });
+
+  assert.equal(result.errors.length, 0);
+  assert.deepEqual(result.operations[0].value, { name: 'Drinking', level: 'Beginner' });
+});
+
 test('normalizeOperations: converts projects root-array alias key to root target', () => {
   const result = normalizeOperations([
     {

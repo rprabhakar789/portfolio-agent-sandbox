@@ -69,6 +69,7 @@ Prompting rules:
 - To append or remove a whole skill entry, target the **root array**.
 - Do **not** use `key: "skills"` for root-array append/remove operations.
 - Prefer structured skill objects with `name` and `level`.
+- If the instruction adds a skill without specifying a level, default the level to `Beginner`.
 - If the instruction is phrased like `Dancing (Beginner)`, convert it to:
 
 ```json
