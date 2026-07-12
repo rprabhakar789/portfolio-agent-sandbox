@@ -31,10 +31,14 @@
     "level": "Intermediate",
     "name": "Terraform"
   },
-  "Azure (Intermediate)",
-  "Artificial Intelligence (Intermediate)",
-  "Dancing (Beginner)",
-  "Singing (Beginner)",
+  {
+    "name": "Azure",
+    "level": "Intermediate"
+  },
+  {
+    "name": "Artificial Intelligence",
+    "level": "Intermediate"
+  },
   {
     "name": "Dancing",
     "level": "Beginner"
