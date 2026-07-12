@@ -46,5 +46,13 @@
   {
     "name": "Singing",
     "level": "Beginner"
+  },
+  {
+    "name": "Terraform",
+    "level": "Beginner"
+  },
+  {
+    "name": "Github",
+    "level": "Beginner"
   }
 ]
