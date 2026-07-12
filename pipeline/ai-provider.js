@@ -29,6 +29,31 @@ const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-1
 const AZURE_OPENAI_TEMPERATURE = process.env.AZURE_OPENAI_TEMPERATURE;
 const DEBUG_MAX_CHARS = 2000;
 
+function isDebugEnabled() {
+  const raw = String(process.env.AI_DEBUG_RESPONSE || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function truncate(str, max = DEBUG_MAX_CHARS) {
+  if (typeof str !== 'string') return '';
+  if (str.length <= max) return str;
+  return `${str.slice(0, max)}… [truncated ${str.length - max} chars]`;
+}
+
+function summarizeOperations(operations) {
+  if (!Array.isArray(operations)) return 'operations=0 files=[]';
+  const files = [...new Set(operations.map((op) => op?.file).filter(Boolean))];
+  return `operations=${operations.length} files=[${files.join(', ')}]`;
+}
+
+function logDebugResponse(provider, rawContent, parsed) {
+  if (!isDebugEnabled()) return;
+  console.log(`[ai-provider][debug] provider=${provider}`);
+  console.log(`[ai-provider][debug] raw_message_content=${truncate(rawContent)}`);
+  console.log(`[ai-provider][debug] parsed_summary=${summarizeOperations(parsed?.operations)}`);
+  console.log(`[ai-provider][debug] parsed_operations=${truncate(JSON.stringify(parsed?.operations || []))}`);
+}
+
 /** System prompt sent to the AI provider. */
 const SYSTEM_PROMPT = `You are a portfolio content editor assistant.
 Given a free-text instruction, return a JSON object with this exact shape:
@@ -65,31 +90,6 @@ async function parseInstruction(instruction) {
     } catch (err) {
       console.error(`[ai-provider] Azure OpenAI call failed: ${err.message} — falling back to stub.`);
       return stubProvider(instruction);
-    }
-
-    function isDebugEnabled() {
-      const raw = String(process.env.AI_DEBUG_RESPONSE || '').trim().toLowerCase();
-      return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
-    }
-
-    function truncate(str, max = DEBUG_MAX_CHARS) {
-      if (typeof str !== 'string') return '';
-      if (str.length <= max) return str;
-      return `${str.slice(0, max)}… [truncated ${str.length - max} chars]`;
-    }
-
-    function summarizeOperations(operations) {
-      if (!Array.isArray(operations)) return 'operations=0 files=[]';
-      const files = [...new Set(operations.map((op) => op?.file).filter(Boolean))];
-      return `operations=${operations.length} files=[${files.join(', ')}]`;
-    }
-
-    function logDebugResponse(provider, rawContent, parsed) {
-      if (!isDebugEnabled()) return;
-      console.log(`[ai-provider][debug] provider=${provider}`);
-      console.log(`[ai-provider][debug] raw_message_content=${truncate(rawContent)}`);
-      console.log(`[ai-provider][debug] parsed_summary=${summarizeOperations(parsed?.operations)}`);
-      console.log(`[ai-provider][debug] parsed_operations=${truncate(JSON.stringify(parsed?.operations || []))}`);
     }
   }
 
