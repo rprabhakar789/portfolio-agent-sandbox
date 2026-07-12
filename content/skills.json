@@ -54,5 +54,13 @@
   {
     "name": "Github",
     "level": "Beginner"
+  },
+  {
+    "name": "Eating",
+    "level": "Beginner"
+  },
+  {
+    "name": "Drinking",
+    "level": "Beginner"
   }
 ]
