@@ -52,8 +52,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Use a PAT (or GITHUB_TOKEN) so that push triggers CI on the new branch
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer BOT_GH_PAT for downstream workflow fan-out; fallback to GITHUB_TOKEN.
+          token: ${{ secrets.BOT_GH_PAT != '' && secrets.BOT_GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -169,7 +169,7 @@ jobs:
         id: create-pr
         if: steps.agent.outputs.provider == 'llm-ops' && steps.diff.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GH_PAT != '' && secrets.BOT_GH_PAT || secrets.GITHUB_TOKEN }}
           AUTO_MERGE: ${{ steps.agent.outputs.auto_merge }}
         run: |
           TITLE="chore(content): portfolio update — $(date +%Y-%m-%d)"
@@ -214,7 +214,7 @@ jobs:
     steps:
       - name: Enable auto-merge on PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GH_PAT != '' && secrets.BOT_GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ needs.update.outputs.pr_number }}"
           echo "Auto-merge intent detected. Enabling auto-merge for PR #${PR_NUMBER}…"
