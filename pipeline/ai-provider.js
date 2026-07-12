@@ -23,6 +23,8 @@
 
 'use strict';
 
+const { loadKnowledgeBase } = require('./knowledge-base');
+
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21';
@@ -55,7 +57,7 @@ function logDebugResponse(provider, rawContent, parsed) {
 }
 
 /** System prompt sent to the AI provider. */
-const SYSTEM_PROMPT = `You are a portfolio content editor assistant.
+const BASE_SYSTEM_PROMPT = `You are a portfolio content editor assistant.
 Given a free-text instruction, return a JSON object with this exact shape:
 {
   "summary": "<one-sentence summary of the change>",
@@ -70,6 +72,17 @@ Rules:
 - Use "set" to update a single field, "append" to add to an array, "remove" to delete.
 - Key paths use dot notation: e.g. "bio", "0.description" (array index 0, field description).
 - Respond ONLY with valid JSON. No prose, no markdown code fences.`;
+
+function buildSystemPrompt() {
+  const knowledgeBase = loadKnowledgeBase();
+  if (!knowledgeBase) return BASE_SYSTEM_PROMPT;
+
+  return `${BASE_SYSTEM_PROMPT}
+
+Use the following checked-in runtime knowledge base as authoritative guidance for content schemas and root-array behavior:
+
+${knowledgeBase}`;
+}
 
 /**
  * Parses a free-text instruction into structured edit operations.
@@ -111,7 +124,7 @@ async function openaiProvider(instruction, apiKey) {
   const body = JSON.stringify({
     model: OPENAI_MODEL,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildSystemPrompt() },
       { role: 'user', content: instruction },
     ],
     temperature: 0,
@@ -148,7 +161,7 @@ async function azureOpenAIProvider(instruction, apiKey, endpoint, deployment) {
 
   const payload = {
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildSystemPrompt() },
       { role: 'user', content: instruction },
     ],
     response_format: { type: 'json_object' },

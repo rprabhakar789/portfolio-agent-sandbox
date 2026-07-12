@@ -84,7 +84,7 @@ test('applyEdits: set field on content/profile.json and restore', () => {
   const originalBio = original.bio;
 
   const ops = [{ file: 'content/profile.json', op: 'set', key: 'bio', value: '__test_bio__' }];
-  const { applied, errors } = applyEdits(ops);
+  const { applied, errors, changedFiles } = applyEdits(ops);
 
   // Restore original value
   const updated = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -93,10 +93,12 @@ test('applyEdits: set field on content/profile.json and restore', () => {
 
   assert.equal(applied, 1);
   assert.equal(errors.length, 0);
+  assert.deepEqual(changedFiles, ['content/profile.json']);
 });
 
 test('applyEdits: returns zero applied for empty array', () => {
-  const { applied, errors } = applyEdits([]);
+  const { applied, errors, changedFiles } = applyEdits([]);
   assert.equal(applied, 0);
   assert.equal(errors.length, 0);
+  assert.deepEqual(changedFiles, []);
 });

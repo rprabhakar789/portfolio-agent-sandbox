@@ -166,10 +166,11 @@ jobs:
           git push origin "$BRANCH"
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
-      - name: Warn on no-op operations
+      - name: Fail on no-op operations
         if: steps.agent.outputs.provider == 'llm-ops' && steps.agent.outputs.status == 'applied' && steps.diff.outputs.changed == 'false'
         run: |
-          echo "::warning::LLM operations were applied but produced no content diff. Enable AI_DEBUG_RESPONSE=true to inspect model response and operations payload."
+          echo "::error::LLM operations were applied but produced no content diff. Inspect normalized operations and AI debug logs." >&2
+          exit 1
 
       - name: Create pull request
         id: create-pr

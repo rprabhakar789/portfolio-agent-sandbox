@@ -19,17 +19,16 @@
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const { validatePath } = require('./path-validator');
 
 /**
  * Applies an array of edit operations and writes the results to disk.
  * @param {Array<{file: string, op: string, key: string, value?: any}>} operations
- * @returns {{ applied: number, errors: Array<{op: object, error: string}> }}
+ * @returns {{ applied: number, errors: Array<{op: object, error: string}>, changedFiles: string[] }}
  */
 function applyEdits(operations) {
   if (!Array.isArray(operations) || operations.length === 0) {
-    return { applied: 0, errors: [] };
+    return { applied: 0, errors: [], changedFiles: [] };
   }
 
   // Group by file so we read/write each file once
@@ -41,6 +40,7 @@ function applyEdits(operations) {
 
   let applied = 0;
   const errors = [];
+  const changedFiles = [];
 
   for (const [file, ops] of byFile) {
     let resolvedPath;
@@ -52,9 +52,10 @@ function applyEdits(operations) {
     }
 
     let data;
+    let originalRaw;
     try {
-      const raw = fs.readFileSync(resolvedPath, 'utf8');
-      data = JSON.parse(raw);
+      originalRaw = fs.readFileSync(resolvedPath, 'utf8');
+      data = JSON.parse(originalRaw);
     } catch (e) {
       for (const op of ops) errors.push({ op, error: `Cannot read/parse ${file}: ${e.message}` });
       continue;
@@ -69,16 +70,24 @@ function applyEdits(operations) {
       }
     }
 
-    try {
-      fs.writeFileSync(resolvedPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
-    } catch (e) {
-      // Mark all ops for this file as errored on write
-      for (const op of ops) errors.push({ op, error: `Failed to write ${file}: ${e.message}` });
-      applied -= ops.length; // revert count for this file
+    const serialized = JSON.stringify(data, null, 2) + '\n';
+    if (serialized !== originalRaw) {
+      try {
+        fs.writeFileSync(resolvedPath, serialized, 'utf8');
+        changedFiles.push(file);
+      } catch (e) {
+        // Mark all ops for this file as errored on write
+        for (const op of ops) errors.push({ op, error: `Failed to write ${file}: ${e.message}` });
+        applied -= ops.length; // revert count for this file
+      }
+    }
+
+    if (serialized === originalRaw) {
+      continue;
     }
   }
 
-  return { applied, errors };
+  return { applied, errors, changedFiles };
 }
 
 /**

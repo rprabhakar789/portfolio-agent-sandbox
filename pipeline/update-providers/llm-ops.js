@@ -3,6 +3,7 @@
 const { parseInstruction } = require('../ai-provider');
 const { detectAutoMergeIntent, matchedPhrases } = require('../intent-detector');
 const { applyEdits } = require('../edit-engine');
+const { normalizeOperations } = require('../operation-normalizer');
 const { validatePath, PathValidationError } = require('../path-validator');
 
 async function runLlmOpsProvider(context) {
@@ -26,9 +27,32 @@ async function runLlmOpsProvider(context) {
     operations = Array.isArray(parsed.operations) ? parsed.operations : [];
   }
 
-  console.log(`[llm-ops] Operation summary: ${summarizeOperations(operations)}`);
+  console.log(`[llm-ops] Raw operation summary: ${summarizeOperations(operations)}`);
   if (debugEnabled) {
     console.log(`[llm-ops][debug] operations_payload=${JSON.stringify(operations)}`);
+  }
+
+  const normalization = normalizeOperations(operations, { debugEnabled });
+  if (normalization.errors.length > 0) {
+    for (const { op, error } of normalization.errors) {
+      console.error(`[llm-ops] Normalization error on ${op?.file || 'unknown-file'}#${op?.key ?? ''}: ${error}`);
+    }
+    return {
+      provider: 'llm-ops',
+      status: 'error',
+      autoMerge: false,
+      message: 'Operation normalization failed.',
+      errors: normalization.errors,
+    };
+  }
+
+  operations = normalization.operations;
+  console.log(`[llm-ops] Normalized operation summary: ${summarizeOperations(operations)}`);
+  if (debugEnabled) {
+    for (const note of normalization.notes) {
+      console.log(`[llm-ops][debug] normalization=${note}`);
+    }
+    console.log(`[llm-ops][debug] normalized_operations_payload=${JSON.stringify(operations)}`);
   }
 
   if (operations.length === 0) {
@@ -58,7 +82,7 @@ async function runLlmOpsProvider(context) {
   }
 
   console.log('[llm-ops] Applying edits…');
-  const { applied, errors } = applyEdits(operations);
+  const { applied, errors, changedFiles } = applyEdits(operations);
 
   if (errors.length > 0) {
     for (const { op, error } of errors) {
@@ -75,11 +99,23 @@ async function runLlmOpsProvider(context) {
     }
   }
 
+  if (operations.length > 0 && changedFiles.length === 0) {
+    return {
+      provider: 'llm-ops',
+      status: 'error',
+      autoMerge: false,
+      applied,
+      errors,
+      message: `Operations produced no content diff after normalization: ${summarizeOperations(operations)}`,
+    };
+  }
+
   return {
     provider: 'llm-ops',
     status: 'applied',
     autoMerge,
     applied,
+    changedFiles,
     errors,
     message: `Applied ${applied} operation(s).`,
   };
@@ -93,7 +129,8 @@ function isDebugEnabled() {
 function summarizeOperations(operations) {
   if (!Array.isArray(operations) || operations.length === 0) return 'count=0 files=[]';
   const files = [...new Set(operations.map((op) => op?.file).filter(Boolean))];
-  return `count=${operations.length} files=[${files.join(', ')}]`;
+  const opTypes = [...new Set(operations.map((op) => op?.op).filter(Boolean))];
+  return `count=${operations.length} files=[${files.join(', ')}] ops=[${opTypes.join(', ')}]`;
 }
 
 module.exports = { runLlmOpsProvider };
