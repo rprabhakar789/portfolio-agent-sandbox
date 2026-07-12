@@ -34,5 +34,13 @@
   "Azure (Intermediate)",
   "Artificial Intelligence (Intermediate)",
   "Dancing (Beginner)",
-  "Singing (Beginner)"
+  "Singing (Beginner)",
+  {
+    "name": "Dancing",
+    "level": "Beginner"
+  },
+  {
+    "name": "Singing",
+    "level": "Beginner"
+  }
 ]
