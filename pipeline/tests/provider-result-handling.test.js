@@ -2,6 +2,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const { runCopilotProvider } = require('../update-providers/copilot');
 const { runLlmOpsProvider } = require('../update-providers/llm-ops');
 
@@ -54,4 +56,18 @@ test('runLlmOpsProvider: fails on non-content paths', async () => {
   });
   assert.equal(result.provider, 'llm-ops');
   assert.equal(result.status, 'error');
+});
+
+test('runLlmOpsProvider: fails when non-empty operations produce no diff', async () => {
+  const profilePath = path.join(__dirname, '../../content/profile.json');
+  const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+
+  const result = await runLlmOpsProvider({
+    instruction: 'set bio to current value',
+    directOps: [{ file: 'content/profile.json', op: 'set', key: 'bio', value: profile.bio }],
+  });
+
+  assert.equal(result.provider, 'llm-ops');
+  assert.equal(result.status, 'error');
+  assert.match(result.message, /no content diff/i);
 });

@@ -6,7 +6,7 @@
   "scripts": {
     "update": "node pipeline/agent.js",
     "test": "node --test pipeline/tests/",
-    "lint": "node --check pipeline/agent.js pipeline/ai-provider.js pipeline/edit-engine.js pipeline/intent-detector.js pipeline/path-validator.js pipeline/update-providers/index.js pipeline/update-providers/llm-ops.js pipeline/update-providers/copilot.js"
+    "lint": "node --check pipeline/agent.js pipeline/ai-provider.js pipeline/edit-engine.js pipeline/intent-detector.js pipeline/knowledge-base.js pipeline/operation-normalizer.js pipeline/path-validator.js pipeline/update-providers/index.js pipeline/update-providers/llm-ops.js pipeline/update-providers/copilot.js"
   },
   "engines": {
     "node": ">=18.0.0"

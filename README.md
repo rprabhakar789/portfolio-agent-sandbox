@@ -92,8 +92,8 @@ All content lives in `content/` as JSON. **Only these files may be edited by the
 | File | Purpose |
 |------|---------|
 | `content/profile.json` | Name, title, bio, contact links |
-| `content/projects.json` | Array of project objects |
-| `content/skills.json` | Array of skill objects |
+| `content/projects.json` | Root array of project objects |
+| `content/skills.json` | Root array of skill objects |
 
 ### `content/profile.json`
 
@@ -131,6 +131,8 @@ All content lives in `content/` as JSON. **Only these files may be edited by the
   { "name": "JavaScript", "level": "Expert" }
 ]
 ```
+
+`content/projects.json` and `content/skills.json` are **root arrays**, so whole-entry append/remove operations must target the root array instead of using wrapper keys like `projects` or `skills`.
 
 ---
 
@@ -207,6 +209,16 @@ Selection uses `UPDATE_PROVIDER` (`copilot` or `llm-ops`).
 
 For `copilot` in Actions, the workflow needs `issues: write` permission so it can create delegation issues.
 
+### Runtime knowledge base
+
+The runtime prompt for both Azure OpenAI and OpenAI now includes the checked-in file `docs/portfolio-agent-knowledge-base.md`.
+
+- That local document is what the runtime uses today.
+- External knowledge base reference for future integration work:
+  - id: `vs_UDwZF3DPEi4eo2JqXZeoVYEl`
+  - name: `portfolio-knowledge-base`
+- Direct vector-store retrieval is not currently required for Azure/OpenAI runtime behavior in this repo.
+
 ### Provider examples
 
 ```bash
@@ -241,7 +253,7 @@ Recommended Azure configuration:
 Model response debugging:
 - Debug logging is **ON by default** in the dispatch workflow (`AI_DEBUG_RESPONSE=true` when not set in vars/secrets).
 - To turn it off, set `AI_DEBUG_RESPONSE=false` in repository **Variables** (preferred) or **Secrets**.
-- Use this only for troubleshooting; logs may include model-generated content derived from your instruction.
+- Use this only for troubleshooting; logs may include model-generated content derived from your instruction, plus normalization decisions for schema-aware fixes.
 
 > **Note:** `GITHUB_TOKEN` is automatically available to all workflows — no setup needed for PR creation and auto-merge.
 >
