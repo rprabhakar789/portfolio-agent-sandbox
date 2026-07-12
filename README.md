@@ -327,9 +327,11 @@ See [`examples/gmail-apps-script.gs`](examples/gmail-apps-script.gs) for a Googl
    - `GITHUB_REPO` — `owner/repo` (e.g. `rprabhakar789/portfolio-agent-sandbox`)
    - `GMAIL_LABEL` — label name to watch (e.g. `portfolio-update`)
    - `ALLOWED_SENDERS` — required comma-separated sender emails (normalized with trim + lowercase), e.g. `alice@example.com,bob@company.com`
+   - `UPDATE_PROVIDER` — optional, defaults to `llm-ops` (set `copilot` only if you want delegation mode)
 4. Create a **time-driven trigger**: Run `forwardLabeledEmails` every 5–15 minutes.
 
 Only allowlisted senders are dispatched to GitHub. Non-allowlisted senders are skipped and logged, and messages are left unread/labeled by default for manual review.
+Email-triggered updates now use `llm-ops` by default unless you explicitly override provider.
 
 ---
 
