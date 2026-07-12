@@ -9,6 +9,7 @@
  *        GITHUB_REPO   — e.g. "rprabhakar789/portfolio-agent-sandbox"
  *        GMAIL_LABEL   — Gmail label to watch, e.g. "portfolio-update"
  *        ALLOWED_SENDERS — required comma-separated sender emails
+ *        UPDATE_PROVIDER — optional; defaults to "llm-ops"
  *   3. Create a time-driven trigger: forwardLabeledEmails, every 10 minutes.
  *
  * How it works:
@@ -28,6 +29,7 @@ function getConfig() {
   const repo  = props.getProperty('GITHUB_REPO');
   const label = props.getProperty('GMAIL_LABEL') || 'portfolio-update';
   const allowedSendersRaw = props.getProperty('ALLOWED_SENDERS');
+  const updateProvider = props.getProperty('UPDATE_PROVIDER') || 'llm-ops';
 
   if (!token) throw new Error('Script property GITHUB_TOKEN is not set.');
   if (!repo)  throw new Error('Script property GITHUB_REPO is not set.');
@@ -38,7 +40,7 @@ function getConfig() {
     throw new Error('Script property ALLOWED_SENDERS has no valid email addresses.');
   }
 
-  return { token, repo, label, allowedSenders: new Set(allowedSenders) };
+  return { token, repo, label, updateProvider, allowedSenders: new Set(allowedSenders) };
 }
 
 /**
@@ -78,7 +80,7 @@ function extractSenderEmail(fromHeader) {
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 function forwardLabeledEmails() {
-  const { token, repo, label, allowedSenders } = getConfig();
+  const { token, repo, label, updateProvider, allowedSenders } = getConfig();
 
   const query = `label:${label} is:unread`;
   const threads = GmailApp.search(query, 0, 10); // process up to 10 at a time
@@ -120,7 +122,7 @@ function forwardLabeledEmails() {
     Logger.log(`Processing: "${subject}"`);
     Logger.log(`Instruction (first 120 chars): ${body.slice(0, 120)}`);
 
-    const success = dispatchToGitHub(token, repo, body, subject);
+    const success = dispatchToGitHub(token, repo, body, subject, updateProvider);
 
     if (success) {
       // Mark thread as read and remove the label so it's not processed again
@@ -141,15 +143,17 @@ function forwardLabeledEmails() {
  * @param {string} repo    - "owner/repo"
  * @param {string} instruction - free-text instruction
  * @param {string} subject - email subject (included in payload for context)
+ * @param {string} updateProvider - provider mode (`llm-ops` or `copilot`)
  * @returns {boolean}      - true on HTTP 204 success
  */
-function dispatchToGitHub(token, repo, instruction, subject) {
+function dispatchToGitHub(token, repo, instruction, subject, updateProvider) {
   const url = `https://api.github.com/repos/${repo}/dispatches`;
 
   const payload = JSON.stringify({
     event_type: 'portfolio-update',
     client_payload: {
       instruction: instruction,
+      update_provider: updateProvider,
       source: 'gmail',
       subject: subject,
     },

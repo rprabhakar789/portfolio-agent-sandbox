@@ -25,7 +25,7 @@ on:
       update_provider:
         description: "Provider override: copilot or llm-ops (optional)"
         required: false
-        default: ""
+        default: "llm-ops"
       operations:
         description: "Optional JSON array of edit operations (overrides AI parsing)"
         required: false
@@ -86,6 +86,8 @@ jobs:
             fi
             if [ -n "${DISPATCH_PROVIDER}" ]; then
               echo "UPDATE_PROVIDER=${DISPATCH_PROVIDER}" >> "$GITHUB_ENV"
+            else
+              echo "UPDATE_PROVIDER=llm-ops" >> "$GITHUB_ENV"
             fi
           else
             {
@@ -100,6 +102,8 @@ jobs:
             fi
             if [ -n "${WD_PROVIDER}" ]; then
               echo "UPDATE_PROVIDER=${WD_PROVIDER}" >> "$GITHUB_ENV"
+            else
+              echo "UPDATE_PROVIDER=llm-ops" >> "$GITHUB_ENV"
             fi
           fi
 
