@@ -238,6 +238,10 @@ Recommended Azure configuration:
   - Optional: `AZURE_OPENAI_API_VERSION` (default `2024-10-21`)
   - Optional: `AZURE_OPENAI_TEMPERATURE`
 
+Model response debugging:
+- Set repository variable `AI_DEBUG_RESPONSE=true` to log model raw response content (truncated) and parsed operations payload in workflow logs.
+- Use this only for troubleshooting; logs may include model-generated content derived from your instruction.
+
 > **Note:** `GITHUB_TOKEN` is automatically available to all workflows — no setup needed for PR creation and auto-merge.
 >
 > `llm-ops` provider AI selection order: **Azure OpenAI (if configured)** → **OpenAI** → **stub**.
