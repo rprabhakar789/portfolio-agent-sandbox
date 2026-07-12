@@ -5,5 +5,13 @@
   "email": "you@example.com",
   "github": "https://github.com/yourusername",
   "linkedin": "https://linkedin.com/in/yourusername",
-  "avatar": "assets/avatar.png"
+  "avatar": "assets/avatar.png",
+  "experience": [
+    {
+      "title": "Software Engineer 2",
+      "company": "Microsoft",
+      "startDate": "2025",
+      "endDate": "Present"
+    }
+  ]
 }
