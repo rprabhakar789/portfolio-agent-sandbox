@@ -8,10 +8,12 @@
  *        GITHUB_TOKEN  — Personal Access Token with repo scope
  *        GITHUB_REPO   — e.g. "rprabhakar789/portfolio-agent-sandbox"
  *        GMAIL_LABEL   — Gmail label to watch, e.g. "portfolio-update"
+ *        ALLOWED_SENDERS — required comma-separated sender emails
  *   3. Create a time-driven trigger: forwardLabeledEmails, every 10 minutes.
  *
  * How it works:
  *   - Searches for unread messages with the configured Gmail label.
+ *   - Enforces sender allowlist from ALLOWED_SENDERS.
  *   - Uses the plain-text body of the first matching email as the "instruction".
  *   - POSTs a repository_dispatch event to GitHub.
  *   - Removes the label from the thread so it isn't processed again.
@@ -25,17 +27,24 @@ function getConfig() {
   const token = props.getProperty('GITHUB_TOKEN');
   const repo  = props.getProperty('GITHUB_REPO');
   const label = props.getProperty('GMAIL_LABEL') || 'portfolio-update';
+  const allowedSendersRaw = props.getProperty('ALLOWED_SENDERS');
 
   if (!token) throw new Error('Script property GITHUB_TOKEN is not set.');
   if (!repo)  throw new Error('Script property GITHUB_REPO is not set.');
+  if (!allowedSendersRaw) throw new Error('Script property ALLOWED_SENDERS is not set.');
 
-  return { token, repo, label };
+  const allowedSenders = parseAllowedSenders(allowedSendersRaw);
+  if (allowedSenders.length === 0) {
+    throw new Error('Script property ALLOWED_SENDERS has no valid email addresses.');
+  }
+
+  return { token, repo, label, allowedSenders: new Set(allowedSenders) };
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 function forwardLabeledEmails() {
-  const { token, repo, label } = getConfig();
+  const { token, repo, label, allowedSenders } = getConfig();
 
   const query = `label:${label} is:unread`;
   const threads = GmailApp.search(query, 0, 10); // process up to 10 at a time
@@ -53,11 +62,59 @@ function forwardLabeledEmails() {
     const messages = thread.getMessages();
     const message  = messages[messages.length - 1]; // use the latest message in thread
     const subject  = message.getSubject();
+    const fromHeader = message.getFrom();
+    const senderEmail = extractSenderEmail(fromHeader);
+
+    if (!senderEmail) {
+      Logger.log(`Skipping thread "${subject}" — cannot parse sender from header: ${fromHeader}`);
+      continue;
+    }
+
+    if (!allowedSenders.has(senderEmail)) {
+      Logger.log(`Skipping thread "${subject}" — sender "${senderEmail}" is not allowlisted.`);
+      // Intentionally do NOT mark read / remove label for manual review.
+      continue;
+    }
+
     const body     = message.getPlainBody().trim();
 
     if (!body) {
       Logger.log(`Skipping thread "${subject}" — empty body.`);
       continue;
+    }
+
+    /**
+     * Parses ALLOWED_SENDERS CSV into normalized email list.
+     * @param {string} raw
+     * @returns {string[]}
+     */
+    function parseAllowedSenders(raw) {
+      return raw
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => s.length > 0);
+    }
+
+    /**
+     * Extract sender email from a Gmail From header.
+     * Handles values like:
+     *   - "Jane Doe <jane@example.com>"
+     *   - "jane@example.com"
+     *   - "\"Jane, Inc\" <jane@example.com>"
+     * @param {string} fromHeader
+     * @returns {string|null}
+     */
+    function extractSenderEmail(fromHeader) {
+      if (!fromHeader) return null;
+      const text = String(fromHeader).trim();
+
+      const angleMatch = text.match(/<\s*([^<>@\s]+@[^<>@\s]+)\s*>/);
+      if (angleMatch && angleMatch[1]) return angleMatch[1].trim().toLowerCase();
+
+      const directMatch = text.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+      if (directMatch && directMatch[1]) return directMatch[1].trim().toLowerCase();
+
+      return null;
     }
 
     Logger.log(`Processing: "${subject}"`);
