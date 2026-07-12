@@ -26,6 +26,7 @@
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21';
+const AZURE_OPENAI_TEMPERATURE = process.env.AZURE_OPENAI_TEMPERATURE;
 
 /** System prompt sent to the AI provider. */
 const SYSTEM_PROMPT = `You are a portfolio content editor assistant.
@@ -118,14 +119,26 @@ async function azureOpenAIProvider(instruction, apiKey, endpoint, deployment) {
   const normalizedEndpoint = endpoint.replace(/\/+$/, '');
   const url = `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(AZURE_OPENAI_API_VERSION)}`;
 
-  const body = JSON.stringify({
+  const payload = {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: instruction },
     ],
-    temperature: 0,
     response_format: { type: 'json_object' },
-  });
+  };
+
+  // Some Azure-hosted models only support the provider default temperature.
+  // Include temperature only when explicitly configured.
+  if (AZURE_OPENAI_TEMPERATURE != null && AZURE_OPENAI_TEMPERATURE !== '') {
+    const parsedTemperature = Number(AZURE_OPENAI_TEMPERATURE);
+    if (Number.isFinite(parsedTemperature)) {
+      payload.temperature = parsedTemperature;
+    } else {
+      console.warn('[ai-provider] AZURE_OPENAI_TEMPERATURE is not numeric; ignoring override.');
+    }
+  }
+
+  const body = JSON.stringify(payload);
 
   const res = await fetch(url, {
     method: 'POST',
