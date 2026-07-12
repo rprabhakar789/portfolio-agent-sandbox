@@ -6,6 +6,7 @@ name: Portfolio Update (repository_dispatch)
 #     "event_type": "portfolio-update",
 #     "client_payload": {
 #       "instruction": "Update bio to: I love building tools.",
+#       "update_provider": "llm-ops", // optional: copilot | llm-ops
 #       "operations": []   // optional: skip AI and pass edit ops directly
 #     }
 #   }
@@ -21,6 +22,10 @@ on:
         description: "Free-text instruction for the agent"
         required: true
         default: "Update bio to: Available for new opportunities."
+      update_provider:
+        description: "Provider override: copilot or llm-ops (optional)"
+        required: false
+        default: ""
       operations:
         description: "Optional JSON array of edit operations (overrides AI parsing)"
         required: false
@@ -28,6 +33,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 jobs:
@@ -37,6 +43,9 @@ jobs:
 
     outputs:
       auto_merge: ${{ steps.agent.outputs.auto_merge }}
+      provider: ${{ steps.agent.outputs.provider }}
+      status: ${{ steps.agent.outputs.status }}
+      delegation_url: ${{ steps.agent.outputs.delegation_url }}
       pr_number: ${{ steps.create-pr.outputs.pr_number }}
 
     steps:
@@ -57,8 +66,10 @@ jobs:
           # repository_dispatch payload
           DISPATCH_INSTRUCTION: ${{ github.event.client_payload.instruction }}
           DISPATCH_OPERATIONS: ${{ toJSON(github.event.client_payload.operations) }}
+          DISPATCH_PROVIDER: ${{ github.event.client_payload.update_provider }}
           # workflow_dispatch inputs
           WD_INSTRUCTION: ${{ inputs.instruction }}
+          WD_PROVIDER: ${{ inputs.update_provider }}
           WD_OPERATIONS: ${{ inputs.operations }}
         run: |
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
@@ -73,6 +84,9 @@ jobs:
               node -e "JSON.parse(require('fs').readFileSync('/tmp/operations.json', 'utf8'))"
               echo "OPS_FILE=/tmp/operations.json" >> "$GITHUB_ENV"
             fi
+            if [ -n "${DISPATCH_PROVIDER}" ]; then
+              echo "UPDATE_PROVIDER=${DISPATCH_PROVIDER}" >> "$GITHUB_ENV"
+            fi
           else
             {
               echo 'INSTRUCTION<<EOF'
@@ -84,23 +98,33 @@ jobs:
               node -e "JSON.parse(require('fs').readFileSync('/tmp/operations.json', 'utf8'))"
               echo "OPS_FILE=/tmp/operations.json" >> "$GITHUB_ENV"
             fi
+            if [ -n "${WD_PROVIDER}" ]; then
+              echo "UPDATE_PROVIDER=${WD_PROVIDER}" >> "$GITHUB_ENV"
+            fi
           fi
 
       - name: Run agent pipeline
         id: agent
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
           AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
           AZURE_OPENAI_TEMPERATURE: ${{ secrets.AZURE_OPENAI_TEMPERATURE }}
+          UPDATE_PROVIDER: ${{ env.UPDATE_PROVIDER }}
           INSTRUCTION: ${{ env.INSTRUCTION }}
         run: |
           if [ -n "$OPS_FILE" ] && [ -s "$OPS_FILE" ]; then
-            node -e "const fs=require('fs'); const {spawnSync}=require('child_process'); const payload={instruction: process.env.INSTRUCTION || '', operations: JSON.parse(fs.readFileSync(process.env.OPS_FILE, 'utf8'))}; const result=spawnSync('node', ['pipeline/agent.js','--json', JSON.stringify(payload)], {stdio:'inherit'}); process.exit(result.status ?? 1);" || EXIT=$?
+            node -e "const fs=require('fs'); const {spawnSync}=require('child_process'); const payload={instruction: process.env.INSTRUCTION || '', operations: JSON.parse(fs.readFileSync(process.env.OPS_FILE, 'utf8'))}; const args=['pipeline/agent.js']; if (process.env.UPDATE_PROVIDER) { args.push('--provider', process.env.UPDATE_PROVIDER); } args.push('--json', JSON.stringify(payload)); const result=spawnSync('node', args, {stdio:'inherit'}); process.exit(result.status ?? 1);" || EXIT=$?
           else
-            node pipeline/agent.js --instruction "$INSTRUCTION" || EXIT=$?
+            if [ -n "$UPDATE_PROVIDER" ]; then
+              node pipeline/agent.js --provider "$UPDATE_PROVIDER" --instruction "$INSTRUCTION" || EXIT=$?
+            else
+              node pipeline/agent.js --instruction "$INSTRUCTION" || EXIT=$?
+            fi
           fi
 
           EXIT=${EXIT:-0}
@@ -118,11 +142,12 @@ jobs:
 
       - name: Check for content changes
         id: diff
+        if: steps.agent.outputs.provider == 'llm-ops'
         run: |
           git diff --quiet content/ && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit changes
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.agent.outputs.provider == 'llm-ops' && steps.diff.outputs.changed == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -138,7 +163,7 @@ jobs:
 
       - name: Create pull request
         id: create-pr
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.agent.outputs.provider == 'llm-ops' && steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUTO_MERGE: ${{ steps.agent.outputs.auto_merge }}
@@ -164,10 +189,18 @@ jobs:
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
           echo "Created PR: $PR_URL"
 
+      - name: Copilot delegation result
+        if: steps.agent.outputs.provider == 'copilot'
+        run: |
+          echo "Copilot provider status: ${{ steps.agent.outputs.status }}"
+          if [ "${{ steps.agent.outputs.status }}" = "delegated" ]; then
+            echo "Delegated URL: ${{ steps.agent.outputs.delegation_url }}"
+          fi
+
   auto-merge:
     name: Auto-merge (if intent detected)
     needs: update
-    if: needs.update.outputs.auto_merge == 'true' && needs.update.outputs.pr_number != ''
+    if: needs.update.outputs.provider == 'llm-ops' && needs.update.outputs.auto_merge == 'true' && needs.update.outputs.pr_number != ''
     runs-on: ubuntu-latest
 
     permissions:

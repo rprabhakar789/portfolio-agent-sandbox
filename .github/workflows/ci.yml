@@ -30,6 +30,9 @@ jobs:
           node --check pipeline/edit-engine.js
           node --check pipeline/intent-detector.js
           node --check pipeline/path-validator.js
+          node --check pipeline/update-providers/index.js
+          node --check pipeline/update-providers/llm-ops.js
+          node --check pipeline/update-providers/copilot.js
 
       - name: Run tests
         run: node --test pipeline/tests/*.test.js
