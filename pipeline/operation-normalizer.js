@@ -80,13 +80,14 @@ function normalizeSkillOperation(operation) {
   const notes = [];
   const rootTarget = isRootArrayTarget(operation.key);
   const itemTarget = typeof operation.key === 'string' && /^\d+$/.test(operation.key);
+  const allowDefaultLevel = operation.op === 'append' || operation.op === 'set';
 
   if (operation.op === 'set' && rootTarget) {
     if (!Array.isArray(operation.value)) {
       throw new Error('content/skills.json root-level set operations require an array value');
     }
     const normalizedItems = operation.value.map((value) => {
-      const result = normalizeSkillItem(value);
+      const result = normalizeSkillItem(value, { allowDefaultLevel });
       if (result.note) notes.push(result.note);
       return result.value;
     });
@@ -94,13 +95,13 @@ function normalizeSkillOperation(operation) {
   }
 
   if ((operation.op === 'append' || operation.op === 'remove') && rootTarget) {
-    const result = normalizeSkillItem(operation.value);
+    const result = normalizeSkillItem(operation.value, { allowDefaultLevel });
     if (result.note) notes.push(result.note);
     return { value: result.value, notes };
   }
 
   if (operation.op === 'set' && itemTarget) {
-    const result = normalizeSkillItem(operation.value);
+    const result = normalizeSkillItem(operation.value, { allowDefaultLevel });
     if (result.note) notes.push(result.note);
     return { value: result.value, notes };
   }
@@ -108,12 +109,27 @@ function normalizeSkillOperation(operation) {
   return { value: operation.value, notes };
 }
 
-function normalizeSkillItem(value) {
+function normalizeSkillItem(value, options = {}) {
+  const allowDefaultLevel = Boolean(options.allowDefaultLevel);
+
   if (isPlainObject(value)) {
     const name = normalizeNonEmptyString(value.name);
     const level = normalizeNonEmptyString(value.level);
-    if (!name || !level) {
+
+    if (!name) {
       throw new Error('Skill values must include non-empty "name" and "level" fields');
+    }
+
+    if (!level) {
+      if (!allowDefaultLevel) {
+        throw new Error('Skill values must include non-empty "name" and "level" fields');
+      }
+
+      const normalized = { ...value, name, level: 'Beginner' };
+      return {
+        value: normalized,
+        note: `defaulted missing skill level to "Beginner" for ${JSON.stringify(normalized)}`,
+      };
     }
 
     const normalized = { ...value, name, level };
@@ -127,12 +143,25 @@ function normalizeSkillItem(value) {
 
   if (typeof value === 'string') {
     const parsed = parseSkillString(value);
-    if (!parsed) {
+    if (parsed) {
+      return {
+        value: parsed,
+        note: `normalized skill string "${value}" to ${JSON.stringify(parsed)}`,
+      };
+    }
+
+    if (!allowDefaultLevel) {
       throw new Error('Skill string values must use the form "Name (Level)"');
     }
+
+    const name = normalizeNonEmptyString(value);
+    if (!name) {
+      throw new Error('Skill string values must use the form "Name (Level)"');
+    }
+
     return {
-      value: parsed,
-      note: `normalized skill string "${value}" to ${JSON.stringify(parsed)}`,
+      value: { name, level: 'Beginner' },
+      note: `defaulted missing skill level to "Beginner" for "${name}"`,
     };
   }
 

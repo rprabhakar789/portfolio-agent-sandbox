@@ -71,3 +71,23 @@ test('runLlmOpsProvider: fails when non-empty operations produce no diff', async
   assert.equal(result.status, 'error');
   assert.match(result.message, /no content diff/i);
 });
+
+test('runLlmOpsProvider: defaults missing skill levels for appended skill objects', async () => {
+  const skillsPath = path.join(__dirname, '../../content/skills.json');
+  const originalRaw = fs.readFileSync(skillsPath, 'utf8');
+
+  try {
+    const result = await runLlmOpsProvider({
+      instruction: 'add eating skill',
+      directOps: [{ file: 'content/skills.json', op: 'append', key: '', value: { name: 'Eating' } }],
+    });
+
+    assert.equal(result.provider, 'llm-ops');
+    assert.equal(result.status, 'applied');
+
+    const updatedSkills = JSON.parse(fs.readFileSync(skillsPath, 'utf8'));
+    assert.deepEqual(updatedSkills[updatedSkills.length - 1], { name: 'Eating', level: 'Beginner' });
+  } finally {
+    fs.writeFileSync(skillsPath, originalRaw);
+  }
+});
