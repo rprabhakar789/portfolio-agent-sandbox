@@ -14,7 +14,7 @@
  *     summary: string,          // one-line summary of what was understood
  *     operations: EditOp[],     // array of edit operations for edit-engine.js
  *     confidence: number,       // 0-1, provider's confidence
- *     provider: string,         // 'openai' | 'stub'
+ *     provider: string,         // 'azure-openai' | 'openai' | 'stub'
  *   }
  *
  * EditOp shape:
@@ -25,6 +25,7 @@
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21';
 
 /** System prompt sent to the AI provider. */
 const SYSTEM_PROMPT = `You are a portfolio content editor assistant.
@@ -45,25 +46,37 @@ Rules:
 
 /**
  * Parses a free-text instruction into structured edit operations.
- * Uses OpenAI when OPENAI_API_KEY is set; falls back to a stub provider.
+ * Provider selection order: Azure OpenAI -> OpenAI -> stub.
  *
  * @param {string} instruction
  * @returns {Promise<{summary: string, operations: object[], confidence: number, provider: string}>}
  */
 async function parseInstruction(instruction) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const azureApiKey = process.env.AZURE_OPENAI_API_KEY;
+  const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const azureDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
 
-  if (!apiKey) {
-    console.warn('[ai-provider] OPENAI_API_KEY not set — using stub provider.');
-    return stubProvider(instruction);
+  if (azureApiKey && azureEndpoint && azureDeployment) {
+    try {
+      return await azureOpenAIProvider(instruction, azureApiKey, azureEndpoint, azureDeployment);
+    } catch (err) {
+      console.error(`[ai-provider] Azure OpenAI call failed: ${err.message} — falling back to stub.`);
+      return stubProvider(instruction);
+    }
   }
 
-  try {
-    return await openaiProvider(instruction, apiKey);
-  } catch (err) {
-    console.error(`[ai-provider] OpenAI call failed: ${err.message} — falling back to stub.`);
-    return stubProvider(instruction);
+  if (openaiApiKey) {
+    try {
+      return await openaiProvider(instruction, openaiApiKey);
+    } catch (err) {
+      console.error(`[ai-provider] OpenAI call failed: ${err.message} — falling back to stub.`);
+      return stubProvider(instruction);
+    }
   }
+
+  console.warn('[ai-provider] No Azure OpenAI or OpenAI credentials found — using stub provider.');
+  return stubProvider(instruction);
 }
 
 /* ── OpenAI provider ── */
@@ -98,6 +111,42 @@ async function openaiProvider(instruction, apiKey) {
 
   const parsed = JSON.parse(content);
   return { ...parsed, provider: 'openai' };
+}
+
+/* ── Azure OpenAI provider ── */
+async function azureOpenAIProvider(instruction, apiKey, endpoint, deployment) {
+  const normalizedEndpoint = endpoint.replace(/\/+$/, '');
+  const url = `${normalizedEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(AZURE_OPENAI_API_VERSION)}`;
+
+  const body = JSON.stringify({
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: instruction },
+    ],
+    temperature: 0,
+    response_format: { type: 'json_object' },
+  });
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': apiKey,
+    },
+    body,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Empty response from Azure OpenAI');
+
+  const parsed = JSON.parse(content);
+  return { ...parsed, provider: 'azure-openai' };
 }
 
 /* ── Stub provider (no API key) ── */

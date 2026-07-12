@@ -147,6 +147,16 @@ node pipeline/agent.js --instruction "Update my bio to: I'm a fullstack engineer
 OPENAI_API_KEY=sk-... node pipeline/agent.js --instruction "Add Docker to my skills list."
 ```
 
+### With Azure OpenAI / Azure AI Foundry
+
+```bash
+AZURE_OPENAI_API_KEY=... \
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com \
+AZURE_OPENAI_DEPLOYMENT=<deployment-name> \
+AZURE_OPENAI_API_VERSION=2024-10-21 \
+node pipeline/agent.js --instruction "Add Docker to my skills list."
+```
+
 ### Bypass AI — pass edit operations directly
 
 ```bash
@@ -184,10 +194,16 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 | Secret | Required | Description |
 |--------|----------|-------------|
-| `OPENAI_API_KEY` | Optional | Enables real AI parsing. Stub provider is used when absent. |
+| `AZURE_OPENAI_API_KEY` | Optional (Azure path) | Azure OpenAI/AI Foundry API key. Use with endpoint + deployment below. |
+| `AZURE_OPENAI_ENDPOINT` | Optional (Azure path) | Azure OpenAI endpoint, e.g. `https://<resource>.openai.azure.com`. |
+| `AZURE_OPENAI_DEPLOYMENT` | Optional (Azure path) | Azure model deployment name for chat completions. |
+| `AZURE_OPENAI_API_VERSION` | Optional (Azure path) | API version override (default: `2024-10-21`). |
+| `OPENAI_API_KEY` | Optional (OpenAI path) | Enables OpenAI parsing when Azure credentials are not configured. |
 | `DISPATCH_TOKEN` | Recommended | A PAT with `repo` scope for triggering `repository_dispatch` from external sources (Gmail script, etc.). |
 
 > **Note:** `GITHUB_TOKEN` is automatically available to all workflows — no setup needed for PR creation and auto-merge.
+>
+> Provider selection order in the pipeline: **Azure OpenAI (if configured)** → **OpenAI** → **stub**.
 
 ---
 

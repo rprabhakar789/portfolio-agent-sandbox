@@ -49,7 +49,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Build agent payload
         id: payload
@@ -62,16 +62,26 @@ jobs:
           WD_OPERATIONS: ${{ inputs.operations }}
         run: |
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "INSTRUCTION=${DISPATCH_INSTRUCTION}" >> "$GITHUB_ENV"
+            {
+              echo 'INSTRUCTION<<EOF'
+              echo "$DISPATCH_INSTRUCTION"
+              echo 'EOF'
+            } >> "$GITHUB_ENV"
             # Write operations to a temp file if provided
             if [ "${DISPATCH_OPERATIONS}" != "null" ] && [ -n "${DISPATCH_OPERATIONS}" ]; then
-              echo "${DISPATCH_OPERATIONS}" > /tmp/operations.json
+              printf '%s' "${DISPATCH_OPERATIONS}" > /tmp/operations.json
+              node -e "JSON.parse(require('fs').readFileSync('/tmp/operations.json', 'utf8'))"
               echo "OPS_FILE=/tmp/operations.json" >> "$GITHUB_ENV"
             fi
           else
-            echo "INSTRUCTION=${WD_INSTRUCTION}" >> "$GITHUB_ENV"
+            {
+              echo 'INSTRUCTION<<EOF'
+              echo "$WD_INSTRUCTION"
+              echo 'EOF'
+            } >> "$GITHUB_ENV"
             if [ -n "${WD_OPERATIONS}" ]; then
-              echo "${WD_OPERATIONS}" > /tmp/operations.json
+              printf '%s' "${WD_OPERATIONS}" > /tmp/operations.json
+              node -e "JSON.parse(require('fs').readFileSync('/tmp/operations.json', 'utf8'))"
               echo "OPS_FILE=/tmp/operations.json" >> "$GITHUB_ENV"
             fi
           fi
@@ -80,12 +90,14 @@ jobs:
         id: agent
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
           INSTRUCTION: ${{ env.INSTRUCTION }}
         run: |
-          if [ -n "$OPS_FILE" ]; then
-            OPS=$(cat "$OPS_FILE")
-            PAYLOAD="{\"instruction\":\"${INSTRUCTION}\",\"operations\":${OPS}}"
-            node pipeline/agent.js --json "$PAYLOAD" || EXIT=$?
+          if [ -n "$OPS_FILE" ] && [ -s "$OPS_FILE" ]; then
+            node -e "const fs=require('fs'); const {spawnSync}=require('child_process'); const payload={instruction: process.env.INSTRUCTION || '', operations: JSON.parse(fs.readFileSync(process.env.OPS_FILE, 'utf8'))}; const result=spawnSync('node', ['pipeline/agent.js','--json', JSON.stringify(payload)], {stdio:'inherit'}); process.exit(result.status ?? 1);" || EXIT=$?
           else
             node pipeline/agent.js --instruction "$INSTRUCTION" || EXIT=$?
           fi
