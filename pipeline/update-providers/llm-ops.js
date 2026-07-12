@@ -9,6 +9,7 @@ async function runLlmOpsProvider(context) {
   const instruction = context.instruction || '';
   const directOps = context.directOps || null;
   const autoMerge = instruction ? detectAutoMergeIntent(instruction) : false;
+  const debugEnabled = isDebugEnabled();
 
   if (autoMerge) {
     const phrases = matchedPhrases(instruction);
@@ -23,6 +24,11 @@ async function runLlmOpsProvider(context) {
     console.log(`[llm-ops] AI provider: ${parsed.provider} | Confidence: ${parsed.confidence}`);
     console.log(`[llm-ops] Summary: ${parsed.summary}`);
     operations = Array.isArray(parsed.operations) ? parsed.operations : [];
+  }
+
+  console.log(`[llm-ops] Operation summary: ${summarizeOperations(operations)}`);
+  if (debugEnabled) {
+    console.log(`[llm-ops][debug] operations_payload=${JSON.stringify(operations)}`);
   }
 
   if (operations.length === 0) {
@@ -77,6 +83,17 @@ async function runLlmOpsProvider(context) {
     errors,
     message: `Applied ${applied} operation(s).`,
   };
+}
+
+function isDebugEnabled() {
+  const raw = String(process.env.AI_DEBUG_RESPONSE || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function summarizeOperations(operations) {
+  if (!Array.isArray(operations) || operations.length === 0) return 'count=0 files=[]';
+  const files = [...new Set(operations.map((op) => op?.file).filter(Boolean))];
+  return `count=${operations.length} files=[${files.join(', ')}]`;
 }
 
 module.exports = { runLlmOpsProvider };

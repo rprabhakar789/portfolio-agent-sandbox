@@ -118,6 +118,7 @@ jobs:
           AZURE_OPENAI_DEPLOYMENT: ${{ vars.AZURE_OPENAI_DEPLOYMENT != '' && vars.AZURE_OPENAI_DEPLOYMENT || secrets.AZURE_OPENAI_DEPLOYMENT }}
           AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION != '' && vars.AZURE_OPENAI_API_VERSION || secrets.AZURE_OPENAI_API_VERSION }}
           AZURE_OPENAI_TEMPERATURE: ${{ vars.AZURE_OPENAI_TEMPERATURE != '' && vars.AZURE_OPENAI_TEMPERATURE || secrets.AZURE_OPENAI_TEMPERATURE }}
+          AI_DEBUG_RESPONSE: ${{ vars.AI_DEBUG_RESPONSE != '' && vars.AI_DEBUG_RESPONSE || secrets.AI_DEBUG_RESPONSE }}
           UPDATE_PROVIDER: ${{ env.UPDATE_PROVIDER }}
           INSTRUCTION: ${{ env.INSTRUCTION }}
         run: |
@@ -164,6 +165,11 @@ jobs:
           Triggered by: ${{ github.event_name }}"
           git push origin "$BRANCH"
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Warn on no-op operations
+        if: steps.agent.outputs.provider == 'llm-ops' && steps.agent.outputs.status == 'applied' && steps.diff.outputs.changed == 'false'
+        run: |
+          echo "::warning::LLM operations were applied but produced no content diff. Enable AI_DEBUG_RESPONSE=true to inspect model response and operations payload."
 
       - name: Create pull request
         id: create-pr
