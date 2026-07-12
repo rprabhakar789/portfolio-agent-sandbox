@@ -11,6 +11,7 @@ A minimal portfolio site (plain HTML/CSS) paired with a **Node.js automation pip
 - [Content Files](#content-files)
 - [Running the Agent Locally](#running-the-agent-locally)
 - [GitHub Actions Workflows](#github-actions-workflows)
+- [Update Providers](#update-providers)
 - [Secrets Setup](#secrets-setup)
 - [Payload Format](#payload-format)
 - [Auto-merge Intent](#auto-merge-intent)
@@ -190,6 +191,34 @@ node pipeline/agent.js --json '{
 
 ---
 
+## Update Providers
+
+The update pipeline supports two provider strategies via dependency injection.
+
+| Provider | What it does | Output behavior |
+|------|---------|---------|
+| `llm-ops` | Existing Azure/OpenAI/stub JSON-ops flow → path-validated `content/` edits → commit/PR flow | Applies edits in-repo and can auto-merge when requested |
+| `copilot` | GitHub-native delegation path that creates a handoff issue for Copilot/Coding Agent follow-up | Returns explicit `delegated` / `unsupported` / `error`; does not fake applied edits |
+
+Selection uses `UPDATE_PROVIDER` (`copilot` or `llm-ops`).
+
+- If `UPDATE_PROVIDER` is set, it is used.
+- If unset, default is `copilot` when running in GitHub Actions with `GITHUB_TOKEN` + `GITHUB_REPOSITORY`; otherwise `llm-ops`.
+
+For `copilot` in Actions, the workflow needs `issues: write` permission so it can create delegation issues.
+
+### Provider examples
+
+```bash
+# Force existing JSON-op behavior
+UPDATE_PROVIDER=llm-ops node pipeline/agent.js --instruction "Update my bio"
+
+# Force Copilot delegation behavior
+UPDATE_PROVIDER=copilot node pipeline/agent.js --instruction "Add a new featured project"
+```
+
+---
+
 ## Secrets Setup
 
 Go to **Settings → Secrets and variables → Actions** and add:
@@ -202,11 +231,14 @@ Go to **Settings → Secrets and variables → Actions** and add:
 | `AZURE_OPENAI_API_VERSION` | Optional (Azure path) | API version override (default: `2024-10-21`). |
 | `AZURE_OPENAI_TEMPERATURE` | Optional (Azure path) | Temperature override. Omitted by default for compatibility with models that require provider default temperature. |
 | `OPENAI_API_KEY` | Optional (OpenAI path) | Enables OpenAI parsing when Azure credentials are not configured. |
+| `GITHUB_TOKEN` | Required for `copilot` in Actions | Used to create delegation issue in the target repository. |
 | `DISPATCH_TOKEN` | Recommended | A PAT with `repo` scope for triggering `repository_dispatch` from external sources (Gmail script, etc.). |
 
 > **Note:** `GITHUB_TOKEN` is automatically available to all workflows — no setup needed for PR creation and auto-merge.
 >
-> Provider selection order in the pipeline: **Azure OpenAI (if configured)** → **OpenAI** → **stub**.
+> `llm-ops` provider AI selection order: **Azure OpenAI (if configured)** → **OpenAI** → **stub**.
+>
+> `copilot` provider currently uses issue-based delegation in GitHub Actions. This is asynchronous: it creates a handoff issue and expects a follow-up PR from Copilot/Coding Agent workflow.
 
 ---
 
@@ -222,7 +254,8 @@ curl -X POST \
   -d '{
     "event_type": "portfolio-update",
     "client_payload": {
-      "instruction": "Update bio to: Available for new opportunities. Ship this."
+      "instruction": "Update bio to: Available for new opportunities. Ship this.",
+      "update_provider": "llm-ops"
     }
   }'
 ```
@@ -339,6 +372,17 @@ curl -X POST \
    - `PathValidationError` — the AI tried to edit a non-content file. Review the instruction and add `operations` manually.
    - OpenAI quota / key issue — the stub provider will be used as fallback.
    - JSON parse error in content file — restore from the last good commit.
+   - Copilot provider `unsupported` — ensure `GITHUB_TOKEN` and `GITHUB_REPOSITORY` are available in the workflow runtime.
+
+### Troubleshooting: no visible UI changes
+
+If the workflow succeeds but no site content changed:
+
+1. Confirm `UPDATE_PROVIDER`.
+   - `copilot` path delegates by creating an issue and does not directly edit `content/`.
+   - `llm-ops` path applies JSON operations directly and opens a PR with content changes.
+2. For `copilot`, open the delegation issue URL from workflow logs/outputs and track the follow-up PR.
+3. If you want immediate content edits in this repo, rerun with `update_provider: llm-ops`.
 
 ---
 
