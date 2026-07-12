@@ -32,7 +32,7 @@ jobs:
           node --check pipeline/path-validator.js
 
       - name: Run tests
-        run: node --test 'pipeline/tests/*.test.js'
+        run: node --test pipeline/tests/*.test.js
 
       - name: Validate content JSON files
         run: |
