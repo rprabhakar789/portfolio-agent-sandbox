@@ -22,5 +22,13 @@
   {
     "name": "Docker",
     "level": "Intermediate"
+  },
+  {
+    "level": "Intermediate",
+    "name": "Kubernetes"
+  },
+  {
+    "level": "Intermediate",
+    "name": "Terraform"
   }
 ]
