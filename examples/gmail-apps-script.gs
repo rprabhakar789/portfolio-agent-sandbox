@@ -41,6 +41,40 @@ function getConfig() {
   return { token, repo, label, allowedSenders: new Set(allowedSenders) };
 }
 
+/**
+ * Parses ALLOWED_SENDERS CSV into normalized email list.
+ * @param {string} raw
+ * @returns {string[]}
+ */
+function parseAllowedSenders(raw) {
+  return raw
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * Extract sender email from a Gmail From header.
+ * Handles values like:
+ *   - "Jane Doe <jane@example.com>"
+ *   - "jane@example.com"
+ *   - "\"Jane, Inc\" <jane@example.com>"
+ * @param {string} fromHeader
+ * @returns {string|null}
+ */
+function extractSenderEmail(fromHeader) {
+  if (!fromHeader) return null;
+  const text = String(fromHeader).trim();
+
+  const angleMatch = text.match(/<\s*([^<>@\s]+@[^<>@\s]+)\s*>/);
+  if (angleMatch && angleMatch[1]) return angleMatch[1].trim().toLowerCase();
+
+  const directMatch = text.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+  if (directMatch && directMatch[1]) return directMatch[1].trim().toLowerCase();
+
+  return null;
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 function forwardLabeledEmails() {
@@ -81,40 +115,6 @@ function forwardLabeledEmails() {
     if (!body) {
       Logger.log(`Skipping thread "${subject}" — empty body.`);
       continue;
-    }
-
-    /**
-     * Parses ALLOWED_SENDERS CSV into normalized email list.
-     * @param {string} raw
-     * @returns {string[]}
-     */
-    function parseAllowedSenders(raw) {
-      return raw
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .filter((s) => s.length > 0);
-    }
-
-    /**
-     * Extract sender email from a Gmail From header.
-     * Handles values like:
-     *   - "Jane Doe <jane@example.com>"
-     *   - "jane@example.com"
-     *   - "\"Jane, Inc\" <jane@example.com>"
-     * @param {string} fromHeader
-     * @returns {string|null}
-     */
-    function extractSenderEmail(fromHeader) {
-      if (!fromHeader) return null;
-      const text = String(fromHeader).trim();
-
-      const angleMatch = text.match(/<\s*([^<>@\s]+@[^<>@\s]+)\s*>/);
-      if (angleMatch && angleMatch[1]) return angleMatch[1].trim().toLowerCase();
-
-      const directMatch = text.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
-      if (directMatch && directMatch[1]) return directMatch[1].trim().toLowerCase();
-
-      return null;
     }
 
     Logger.log(`Processing: "${subject}"`);
