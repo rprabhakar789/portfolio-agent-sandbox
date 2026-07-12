@@ -59,8 +59,20 @@ test('applyOp: throws on unknown op', () => {
 test('applyOp: throws when key is missing', () => {
   assert.throws(
     () => applyOp({}, { op: 'set', value: 1 }),
-    /key is required/
+    /key is required unless target JSON document is an array/
   );
+});
+
+test('applyOp: append to root array when key is missing', () => {
+  const data = [{ name: 'JavaScript' }];
+  const result = applyOp(data, { op: 'append', value: { name: 'AWS' } });
+  assert.deepEqual(result, [{ name: 'JavaScript' }, { name: 'AWS' }]);
+});
+
+test('applyOp: remove from root array when key is missing', () => {
+  const data = ['a', 'b', 'c'];
+  const result = applyOp(data, { op: 'remove', value: 'b' });
+  assert.deepEqual(result, ['a', 'c']);
 });
 
 // ── applyEdits integration tests (real file I/O on actual content/) ──

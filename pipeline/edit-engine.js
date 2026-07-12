@@ -86,7 +86,29 @@ function applyEdits(operations) {
  */
 function applyOp(data, op) {
   const { op: opType, key, value } = op;
-  if (!key) throw new Error(`op.key is required`);
+  const hasKey = key !== undefined && key !== null && key !== '';
+  if (!hasKey) {
+    if (!Array.isArray(data)) {
+      throw new Error('op.key is required unless target JSON document is an array');
+    }
+
+    switch (opType) {
+      case 'append':
+        data.push(value);
+        return data;
+      case 'remove':
+        return data.filter(item =>
+          typeof item === 'object' ? JSON.stringify(item) !== JSON.stringify(value) : item !== value
+        );
+      case 'set':
+        if (!Array.isArray(value)) {
+          throw new Error('Root-level set without key requires value to be an array');
+        }
+        return value;
+      default:
+        throw new Error(`Unknown op type: "${opType}". Must be set | append | remove`);
+    }
+  }
 
   const keys = key.split('.');
   const last = keys[keys.length - 1];
