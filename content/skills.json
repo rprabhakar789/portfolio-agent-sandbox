@@ -66,5 +66,9 @@
   {
     "name": "FastAPI",
     "level": "Beginner"
+  },
+  {
+    "name": "MySQL",
+    "level": "Beginner"
   }
 ]
